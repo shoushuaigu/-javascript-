@@ -1,0 +1,93 @@
+在 html5 中， a 标签新增了 download 属性，包含该属性的链接被点击时，浏览器会以下载文件方式下载 href 属性上的链接。示例：
+
+<a href="https://www.baidu.com" download="baidu.html">下载</a>
+1. 前端 js 下载实现与示例
+通过 javascript 动态创建一个包含 download 属性的 a 元素，再触发点击事件，即可实现前端下载。
+
+代码示例：
+
+function download(href, title) {
+    const a = document.createElement('a');
+    a.setAttribute('href', href);
+    a.setAttribute('download', title);
+    a.click();
+}
+说明：
+
+href 属性设置要下载的文件地址。这个地址支持多种方式的格式，因此可以实现丰富的下载方法。
+download 属性设置了下载文件的名称。但 href 属性为普通链接并且跨域时，该属性值设置多数情况下会被浏览器忽略。
+1.1 普通连接下载示例
+// 下载图片
+download('https://lzw.me/images/gravatar.gif', 'lzwme-gravatar');
+// 下载一个连接
+download('https://lzw.me', 'lzwme-index.html');
+1.2 href 为 data URIs 示例
+data URI 是前缀为 data:scheme 的 URL，允许内容创建者在文档中嵌入小文件。数据URI由四个部分组成：前缀（数据:)，指示数据类型的MIME类型，如果非文本则为可选的base64令牌，数据本身：
+
+data:[<mediatype>][;base64],<data>
+链接的 href 属性为 data URIs 时，也可以实现文件内容的下载。示例：
+
+download('data:,Hello%2C%20World!', 'data-uris.txt');
+download('data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D', 'data-uris.txt');
+1.3 canvas 下载示例
+对于 canvas 可以通过 toDataURL 方法取得 data URIs 格式的内容。
+
+const canvas = document.querySelector('#canvas');
+download(canvas.toDataURL(), 'download-image');
+1.4 二进制内容下载
+URL.createObjectURL 方法会根据传入的参数创建一个指向该参数对象的 URL。新的对象 URL 指向执行的 File 对象或者是 Blob 对象。
+
+URL.createObjectURL 的参数是 File 对象或者 Blob 对象，File 对象也就是通过 input[type=file] 选择的文件，Blob 对象是二进制数据。
+
+将 URL.createObjectURL 返回值设为 href 属性的值，即可实现二进制内容下载。示例：
+
+const content = 'Welcome to lzw.me!';
+const blob = new Blob([content]);
+const href = URL.createObjectURL(blob);
+download(href, 'download-text.txt');
+URL.revokeObjectURL(href);
+2. 检测浏览器是否支持 download 属性
+download 属性为 html5 新增内容，浏览器支持情况可参考： http://caniuse.com/#feat=download
+
+
+判断浏览器是否支持该属性，只需要检测 a 标签是否存在 download 属性。示例：
+
+const downloadAble = 'download' in document.createElement('a');
+对于不支持的浏览器，只能另想他法或者予以降级处理了。
+
+3. 使用serviceWorker 和 fetch API 代理实现
+前端下载更多的需求是因为内容产生于前端。那么可以在后端实现一个这样的 API ，它在接收到前端发出的内容后返回下载格式的数据。这种实现就不存在浏览器兼容问题。
+
+利用 serviceWorker 和 fetch API 截拦浏览器请求，只需实现好约定逻辑，即可实现这种功能需求。示例：
+
+在页面中，通过 fetch API 构造请求：
+
+fetch('lzwme.txt', {
+    isDownload: true,
+    body: {
+        data: new Blob('hi!')
+    }
+})
+在 serviceWorker 中，截拦附带 isDownload 头信息的请求，构造下载回应：
+
+self.addEventListener('fetch', function(event) {
+    const req = event.request;
+
+    if (!req.headers.get('isDownload')) {
+        retrun fetch(req);
+    }
+
+    const filename = encodeURIComponent(req.url);
+    const contentType = req.headers.get('Content-Type') || 'application/force-download';
+    const disposition = "inline;filename=" + filename + ";filename*=utf-8''" + filename
+    const myBody = req.headers.get(body).data;
+
+    event.respondWith(
+        new Response(myBody, {
+            headers: {
+                'Content-Type': contentType,
+                'Content-Disposition': disposition
+            }
+        })
+    );
+});
